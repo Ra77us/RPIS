@@ -1,0 +1,867 @@
+% RAPORT ZOSTAL PRZYGOTOWANY W TAKI SPOSOB,
+% BY WARTOSCI W LICZBOWE I WYKRESY
+% W NIM ZAWARTE BYLY NA BIEZACO WYLICZANE
+% UMOZLIWIA TO DOKANIE ZMIAN W PLIKU Z DANYMI 
+% BEZ KONIECZNOSCI EDYTOWANIA RAPORTU
+% WYWOLANIA FUNKCJI ZAWARTE W NINIEJSZYM
+% RAPORCIE ZOSTALY OPISANE W PLIKU *.R
+% (POMIJAJAC SZCZEGOLY DOTYCZACE FORMATOWANIA 
+% I WYPISYWANIA TEKSTU)
+\documentclass{article}
+
+\usepackage{polski}
+% skomentowana dla MAC wersja {inputenc}
+ \usepackage[utf8]{inputenc}
+% \usepackage[T1]{fontenc}
+%\usepackage[cp1250]{inputenc}
+\usepackage{polski}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage{amsmath}
+\usepackage{Sweave}
+\usepackage{enumerate}
+\usepackage{hyperref}
+
+\title{Badanie ogloszen uzywanych samochodow - Raport}
+\author{\textbf{401039, Michał Szczurek}, czwartek $14^{40}$\\ 
+\textit{AGH, Wydział Informatyki Elektroniki i Telekomunikacji}\\
+\textit{Rachunek prawdopodobieństwa i statystyka 2020/2021}}
+\date{Kraków, \today}
+<<echo = False>>==
+# Wczytanie danych do srodowiska Sweave, przygotowanie bibliotek i 
+# ogólnych funkcji
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(moments) 
+library(tidyverse)
+library(lubridate)
+library(ggthemes)
+library(leaflet)
+library(scales)
+library(gridExtra)
+library(ggridges)
+library(ggpubr)
+library(stats)
+library(GGally)
+cars <- read.csv("cars-processed.csv", header=TRUE)
+@
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+\maketitle
+
+\textit{Ja, niżej podpisany własnoręcznym podpisem deklaruję, że przygotowałem przedstawiony do oceny projekt samodzielnie i żadna jego część nie jest kopią pracy innej osoby.}
+\begin{flushright}
+{Michał Szczurek}
+\end{flushright}
+\tableofcontents
+\section{Streszczenie raportu}
+  Raport powstał w oparciu o analizę danych dotyczących ogłoszeń sprzedaży używanych
+samochodów na Białorusi. Głównym celem analizy było sprawdzenie jakie cechy mają
+wpływ na cenę sprzedawanych samochodów. Analizy dokonano przy pomocy języka R i 
+programu RStudio.
+W badaniu wykorzystano nastepujace cechy:
+\begin{itemize}
+\item manufacturer name - nazwa marki,
+\item color - kolor,
+\item odometer value - liczba przejechanych kilometrow,
+\item year produced - data produkcji samochodu,
+\item engine capacity - pojemnosc silnika (w litrach),
+\item body type - typ samochodu (np. suv, sedan),
+\item price usd - cena w dolarach,
+\item number of phots - liczba zdjec w ogloszeniu,
+\item days listed - liczba dni od wystawienia ogloszenia
+\end{itemize}
+
+Analizujac dane szczegolna wage przywiazano do zaleznosci miedzy cena a liczba przejechanych kilometrow i rokiem produkcji. Wplyw marek i kolorow samochodow nie zostal jednak pominiety (jak i innych mniej istotnych cech). 
+\\
+Stworzony podczas badania model wskazal, ze dla wszystkich cech ilosciowych za wyjatkiem liczby przejechanych kilometrow maja pozytywny (wraz ze wzrostem  badanych wartosci cena rosnie) wplyw na cene samochodu.
+\\
+Podczas badan odkryto rowniez, ze wbrew intuicji wiekszosc cech najprawdopodobniej nie pochodzi z rozkladu normalnego. Prawdopodobnie jest to spowodowane, tym ze na dane takie jak ilosc zdjec, cena ludzie maja bezposredni wplyw.
+\section{Opis danych}
+ Dane zostały zebrane z różnych stron internetowych 2 
+stycznia 2019 i umieszczone na stronie internetowej pod adresem \\
+\href{url}{\texttt{https://www.kaggle.com/lepchenkov/usedcarscatalog. }}
+
+  Dane są bardzo bogatym zbiorem informacji dotyczących zarówno stanu sprzedawanych 
+aut jak i samych ogłoszeń (dla każdego ogłoszenia zebrano 30 cech), w związku z 
+czym nie wszystkie cechy zostaną przeanalizowane w niniejszym raporcie. Głównymi
+obiektami analizy były:
+\begin{itemize}
+
+  \item Cena samochodów
+  \item Liczba zdjęć zawarta w ogłoszeniach
+  \item Liczba przejechanych kilometrów
+  \item Lata produkcji sprzedawanych samochodów
+
+\end{itemize}
+
+Plik zawierający dane został wobec powyższego odpowiednio przetworzony tak, by 
+nie zawierać danych nieujętych w analizie. Dodatkowo dane zostały przefiltrowane
+pod kątem poprawności - część rekordów była uszkodzona.
+
+
+\section{Analiza danych}
+Poniżej zamieszczono wyniki uzyskane wskutek analizy danych.
+\subsection {Uniwersalne funkcje uzyte do analizy danych}
+Ponizej znajduje sie kod funkcji uzytych podczas badan 
+\begin{enumerate}
+\item Funkcja obliczajaca dominante
+<<>>=
+mode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+@
+\item Funkcja wypisujaca podstawowe informacje o wybranej cesze
+<<>>=
+
+get_basic_stats <- function(value){
+  cat("Wartość średnia:",formatC(mean(value), digits = 2, format = "f"),"\n")
+  cat("Mediana:",formatC(median(value), digits = 2, format = "f"),"\n")
+  cat("Odchylenie standardowe:",formatC(sd(value), digits = 2, format = "f"),"\n")
+  cat("Wariancja:",formatC(var(value), digits = 2, format = "f"),"\n")
+  cat("Minimum:",formatC(min(value), digits = 2, format = "f"),"\n")
+  cat("Maksimum:",formatC(max(value), digits = 2, format = "f"),"\n")
+  cat("Dominanta:",formatC(mode(value), digits = 2, format = "f"),"\n")
+  cat("Skośność:",formatC(skewness(value), digits = 2, format = "f"),"\n")
+  cat("Kurtoza:",formatC(kurtosis(value), digits = 2, format = "f"),"\n")
+  cat("Rozstep miedzykwartylowy:",formatC(IQR(value), digits = 2, format = "f"),
+      "\n")
+}
+@
+\end{enumerate}
+\subsection{Analiza ceny sprzedawanych aut}
+Poniżej przedstawiono informacje dotyczące cen podanych w ogłoszeniach sprzedaży
+samochodów. Cena wyrażona została w Dolarze Amerykańskim [USD].
+<<echo = False>>=
+get_basic_stats(cars$price_usd)
+@
+\begin{flushleft}
+\vspace{\baselineskip}
+Sporządzono również następujące wykresy dotyczące ceny samochodów:
+\begin{enumerate}
+\item Wykres pudełkowy 
+\begin{figure}[h]
+\centering
+
+<<echo = False, fig = True,  out.width="1.5\\textwidth">>=
+boxplot(cars$price_usd, col="#69b3a2" , ylab="cena w USD" , outline = FALSE,
+        main = "Ceny - wykres pudełkowy")
+@
+\caption{Wykres pudelkowy cen samochodow}
+\end{figure}
+Powyzszy wykres dobrze ilustruje informacje podane powyzej. Na wykres nie naniesiono punktow odstajacych "outliers" poniewaz ze wzgledu na duza liczbe danych takich punktow bylo wiele, co pogarszalo czytelnosc.
+\newpage
+\item Wykres rozkladu gęstości prawdopodobieństwa
+\\~\\
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True>>=
+cars %>%
+  ggplot( aes(x=price_usd)) +
+  geom_density(fill="#69b3a2", color="black", alpha=0.8) +
+  ggtitle("Ceny wystawionych aut - rozkład gęstości p.") +
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  labs(x = "cena w USD", y = "prawdopodobieństwo") 
+@
+\caption{Wykres gestosci rozkladu cen samochodow}
+\end{figure}
+Powyzszy wykres umozliwia dokonanie obserwacji: 
+<<echo = False>>=
+# procenty do ponizszej obserwacji
+cheaper_cars <- cars[cars$price_usd <10000,]
+proc1 <-formatC((nrow(cheaper_cars)/nrow(cars)*100), digits = 2, format = "f")
+expensive_cars <- cars[cars$price_usd >30000,]
+proc2 <-formatC((nrow(expensive_cars)/nrow(cars)*100), digits = 2, format = "f")
+
+@
+\\
+Znaczna czesc aut wystawiona jest za cene nie przekraczajaca 10000 [USD]. 
+Dokladniej jest to
+<<echo = False>>=
+cat(proc1, "% wszystkich pojazdow")
+@
+Znikoma czesc aut wystawiana jest za cene przekraczajaca 30000 [USD].
+Dokladniej jest to
+<<echo = False>>=
+cat(proc2,"% wszystkich pojazdow")
+@
+\newpage
+
+\item Histogram z przedziałem 5000 [USD]
+\\~\\
+\begin{figure}[h]
+\centering
+
+<<echo = False, fig = True>>=
+cars %>%
+  ggplot( aes(x=price_usd)) + 
+  geom_histogram(binwidth=5000, color="white",  fill = "darkblue") +
+  scale_x_continuous(expand = c(0,0)) +
+  labs(x = "cena w USD", y = "liczba ogłoszeń") +
+  ggtitle("Ceny aut - histogram ") +
+  theme(plot.title = element_text(hjust = 0.5))
+@
+\caption{Histogram cen samochodow z przedziałem 5000 [USD]}
+\end{figure}
+Na powyzszym wykresie widac, ze najpopluraniejszym przedzialem cenowym uzywanych samochodow jest 2500 - 7500 [USD].
+\newpage
+\item Wykres gęstości cen dla konkretnych marek samochodów (ze względu na dużą 
+liczbę marek na wykresie przedstawiono tylko kilka wybranych)
+\\~\\
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True>>=
+selected_man <- c("Fiat", "Audi", "Porsche", "Chevrolet")
+
+cars %>%
+  filter(manufacturer_name %in% selected_man) %>%
+  ggplot( aes(x=price_usd, color=manufacturer_name, fill=manufacturer_name)) +
+  geom_density(alpha=0.8, color = "black") +
+  scale_fill_viridis(discrete=TRUE) +
+  scale_color_viridis(discrete=TRUE) +
+  ggtitle("Ceny aut wybranych marek") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(x = "cena w USD", y = "prawdopodobieństwo") +
+  guides(fill=guide_legend(title="marka"))
+@
+\caption{Wykres rozkladku gestosci cen samochodow dla wybranych marek}
+\end{figure}
+Na powyzszym wykresie mozemy dostrzec wyrazna roznice w cenie w zaleznosci od marki 
+samochodu. Szczegolna uwage przyciaga wykres gestosci cen Fiata - przytlaczajaca 
+wiekszosc aut tej marki sprzedaje sie ponizej 5000 [USD]. Zupelnie inaczej sytuacja wyglada w sytuacji Porche. Ceny tej marki sa znacznie bardziej rownomiernie rozlozone z dominanta w okolicach 10000 [USD], czyli okolo 4 razy drozej niz Fiat.
+Wykresy cen Audi i Chevroleta nie sa sa juz tak spekrtakularnie odmienne, jednak warto zaznaczyc ze w obu przypadkach funkcja gestosci jest scentrowana bardziej na prawo niz w przypadku ogolnej gestosci samochodow - sa to marki drozej wystawiane niz przecietne.
+\newpage
+\item Wykres gęstości cen w dla konkretnych kolorów samochodów (Należy zwrócić 
+uwagę na fakt, że kolor wykresu niekoniecznie pokrywa się z kolorem pojazdu)
+\\~\\
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True>>=
+cars %>%
+  ggplot(aes(x = price_usd, y = color, 
+             group = color, fill=color)) +
+  geom_density_ridges(rel_min_height = 0.01) + 
+  theme_hc() + 
+  ggtitle("Ceny aut o danych kolorach") +
+  labs(x = "cena", y = "prawdopodobieństwo")+
+  guides(fill=guide_legend(title="kolor"))
+@
+\caption{Wykres rozkladku gestosci cen samochodow dla wybranych kolorow}
+\end{figure}
+W wiekszosci przypadkow wykres przypomina ogolny wykres gestosci rozkladu cen.
+Na szczegolna uwage zasluguja auta czarne, szare i brazowe. Ceny tych kolorow sa bardziej rownomiernie rozlozone, co moze oznaczac, ze aurta w tych kolorach sa chetniej kupowane, wiec cena moze byc wyzsza niz cena tego samego samochodu w innym kolorze.
+
+\end{enumerate}
+\end{flushleft}
+
+
+
+\subsection{Analiza liczby zdjec na ogloszeniach}
+Ponizej przedstawiono informacje dotyczace liczby zdjec aut na ogloszeniach
+<<echo = False>>=
+get_basic_stats(cars$number_of_photos)
+@
+\begin{flushleft}
+\vspace{\baselineskip}
+Sporządzono również następujące wykresy dotyczące liczby zdjec samochodów:
+\begin{enumerate}
+\item Wykres pudełkowy 
+\begin{figure}[h]
+\centering
+
+<<echo = False, fig = True,  out.width="1.5\\textwidth">>=
+boxplot(cars$number_of_photos, col="#69b3a2" , ylab="liczba zdjęć", outline = FALSE,
+        main = "Liczba zdjęć - w. pudełkowy")
+@
+\caption{Wykres pudelkowy liczby zdjec na ogloszeniach}
+\end{figure}
+Powyzszy wykres dobrze ilustruje informacje podane powyzej. Na wykres nie naniesiono punktow odstajacych "outliers" poniewaz ze wzgledu na duza liczbe danych takich punktow bylo wiele, co pogarszalo czytelnosc.
+\newpage
+\item Wykres rozkladu gęstości liczby zdjec
+\\~\\
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True>>=
+cars %>%
+  ggplot( aes(x=number_of_photos)) +
+  geom_density(fill="#69b3a2", color="black", alpha=0.8, ylab = "prawdopodobieństwo",
+  xlab = "liczba zdjęć") +
+  ggtitle("Liczba zdjęć w ogłoszeniach - rozkład gęstości p.") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+@
+\caption{Wykres rozkladu gęstości liczby zdjec}
+\end{figure}
+Na powyzszym wykresie mozna zauwazyc, ze do znacznej czesci ogloszen dodawane jest mniej niz 10 zdjec, a tylko nieliczni sprzedawcy decysuja sie na pokazaniu na ogloszeniu wiecej niz 25 zdjec.
+\newpage
+
+\item Histogram z przedziałem 5 [zdjec]
+\\~\\
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True>>=
+cars %>%
+  ggplot(aes(x=number_of_photos)) + 
+  geom_histogram(binwidth=5, color="white",  fill = "darkblue") +
+  scale_x_continuous(expand = c(0,0)) +
+  labs(x = "liczba zdjęć", y = "liczba ogłoszeń") +
+  ggtitle("Liczba zdjęć - histogram ") +
+  theme(plot.title = element_text(hjust = 0.5))
+@
+\caption{Histogram liczby zdjec z przedziałem 5 [zdjec]}
+\end{figure}
+Powyzszy wykres pokazuje, ze najwiecej osob dodaje do ogloszen od 3 do 12 zdjec
+(przedzial pierwszy ma srodek w zerze). Wykres ten pokazuje tez wyrazie (lepiej niz poprzedni), jak niewiele osob decyduje sie na dodanie 2 lub mniej zdjec.
+\end{enumerate}
+\end{flushleft}
+
+
+
+
+
+
+\subsection{Analiza liczby przejechanych kilometrow sprzedawanych aut}
+Ponizej przedstawiono informacje dotyczace liczby przejechanych kilometrow aut na ogloszeniach
+<<echo = False>>=
+get_basic_stats(cars$odometer_value)
+@
+\begin{flushleft}
+\vspace{\baselineskip}
+
+Sporządzono również następujące wykresy dotyczące liczby przejechanych kilometrow:
+\begin{enumerate}
+
+\item Wykres pudełkowy 
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True,  out.width="1.5\\textwidth">>=
+boxplot(cars$odometer_value, col="#69b3a2" , ylab="liczba przejechanych kilometrów",
+        outline = FALSE, main = "Liczba przejechanych km - w. pudełkowy")
+@
+\caption{Wykres pudelkowy liczby przejechanych kilometrow}
+\end{figure}
+
+Powyzszy wykres dobrze ilustruje informacje podane powyzej. Na wykres nie naniesiono punktow odstajacych "outliers" poniewaz ze wzgledu na duza liczbe danych takich punktow bylo wiele, co pogarszalo czytelnosc.
+
+\newpage
+\item Wykres rozkladu gęstości prawdopodobieństwa
+\\~\\
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True>>=
+cars %>%
+  ggplot( aes(x=odometer_value)) +
+  geom_density(fill="#69b3a2", color="black", alpha=0.8) +
+  ggtitle("Liczba p. kilometrów - rozkład gęstości p.") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(x = "liczba przejechanych kilometrów", y = "prawdopodobieństwo")
+
+@
+\caption{Wykres rozkladu gęstości przejechanych kilometrow}
+\end{figure}
+
+Rozklad jest w prawdzie daleki od tego by mozna go bylo nazwac normalnym, mozna jednak zaobserwowac charakterystyczny (chociaz mocno znieksztalcony) ksztalt dzwonu.
+Na wykresie dwie wlasciowosci szczegolnie zwrocily moja uwage - Pierwsza z nich
+byly nagle, skokowe wzrosty gestosci w kilku miejscach. Skok taki mozna zaobserwowac
+na przyklad w okolicach 250000 [km]. Moze to wskazywac na sklonnosc ludzi do przejezdzania pewnej ustalonej liczby kilometrow (np. tak "ladnej" jak 250000) 
+przed sprzedazem auta. Inna mozliwoscia jest to, ze sprzedawcy zaookraglaja wartosci
+w ogloszeniach do "okraglych" liczb. Druga ciekawa zaleznoscia byl nagly wzrtost 
+sprzedazy w okolicach miliona kilometrow. 
+
+\newpage
+
+\item Histogram z przedziałem 100000 [km]
+\\~\\
+\begin{figure}[h]
+\centering
+
+<<echo = False, fig = True>>=
+cars %>%
+  ggplot(aes(x=odometer_value)) + 
+  geom_histogram(binwidth=100000, color="white",  fill = "darkblue") +
+  scale_x_continuous(expand = c(0,0)) +
+  labs(x = "liczba przejechanych kilometrów", y = "liczba ogłoszeń") +
+  ggtitle("liczba przejechanych km - histogram") +
+  theme(plot.title = element_text(hjust = 0.5))
+@
+\caption{Histogram przejechanych kilometrow z podzialem 100000 [km]}
+\end{figure}
+
+Na wykresie widac, ze najczesciej sprzedawane sa samochody majace na licznikach wartosc w przedziale 100 - 350 tys. km.
+\end{enumerate}
+\end{flushleft}
+
+
+
+\subsection{Analiza lat produkcji sprzedawanych aut}
+Ponizej przedstawiono informacje dotyczace lat produkcji aut wystawionych w badanych ogloszeniach.
+
+<<echo = False>>=
+get_basic_stats(cars$year_produced)
+@
+
+\begin{flushleft}
+\vspace{\baselineskip}
+Sporządzono również następujące wykresy dotyczące roku produkcji:
+\begin{enumerate}
+\item Wykres pudełkowy 
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True,  out.width="1.5\\textwidth">>=
+boxplot(cars$year_produced, col="#69b3a2" , ylab="Rok produkcji", 
+         main = "Rok produkcji - w. pudełkowy")
+@
+\caption{Wykres pudelkowy lat produkcji sprzedawanych aut}
+\end{figure}
+
+Powyzszy wykres dobrze ilustruje informacje podane powyzej. Wykres dobrze ilustruje fakt, ze znaczna czesc sprzedawanych aut pochodzi z przelomu wieku XIX i XX.
+
+\newpage
+\item Rozklad gestosci lat produkcji [lat]
+\\~\\
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True>>=
+cars %>%
+  ggplot( aes(x=year_produced)) +
+  geom_density(fill="#69b3a2", color="black", alpha=0.8) +
+  ggtitle("Rok produkcji - rozkład gęstości p.") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(x = "rok produkcji", y = "prawdopodobieństwo")
+@
+\caption{Rozklad gestosci lat produkcji}
+\end{figure}
+
+Lata produkcji nie maja rozkladu ciaglego. Pomimo to pozwolilem sobie na pozostawienie wykresu gestosci w tej formie - jest on przejrzysty. Postanowilem jednak dodatkowo stworzyc histogram o przedziale 1 roku, ktory dokladniej oddaje zaleznosci w badanych danych.Wykres potwierdza obserwacje, ktore byly widoczne juz na wykresie pudelkowym. 
+\newpage
+
+\item Histogram z przedziałem 1 [roku]
+\\~\\
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True>>=
+ggplot(cars, aes(x=year_produced)) + 
+  geom_histogram(binwidth=1, color="white",  fill = "darkblue") +
+  scale_x_continuous(expand = c(0,0)) +
+  labs(x = "rok produkcji", y = "liczba ogłoszeń") +
+  ggtitle("Rok produkcji - histogram 1.") +
+  theme(plot.title = element_text(hjust = 0.5))
+@
+\caption{Histogram lat produkcji z przedziałem 1 [roku]}
+\end{figure}
+Ciekawym zjawiskiem obserwowanym na wykresie jest znaczne zmniejszenie sie liczby sprzedawanych aut z okolic roku 2005 w stosunku do aut z lat 2000 i 2008. Niestety
+pomimo dokonania analizy kursow walut i wydarzn ogolnoswiatowych
+jak i tych na Bialorusi nie udalo mi sie ustalic przyczyny tego fenomenu.
+\newpage
+\item Histogram z przedziałem 15 [lat]
+\\~\\
+\begin{figure}[h]
+\centering
+\newpage
+
+<<echo = False, fig = True>>=
+ggplot(cars, aes(x=year_produced)) + 
+  geom_histogram(binwidth=15, color="white",  fill = "darkblue") +
+  scale_x_continuous(expand = c(0,0)) +
+  labs(x = "rok produkcji", y = "liczba ogłoszeń") +
+  ggtitle("Rok produkcji - histogram 2.") +
+  theme(plot.title = element_text(hjust = 0.5))
+@
+\caption{Histogram lat produkcji z przedziałem 15 [lat]}
+\end{figure}
+
+Wykres bardzo wyraznie przedstawia omawiana juz zaleznosc. Przytlaczajaca wiekszosc pojazdow zostala wyprodukowana w latach 1995 - 2015.
+
+\end{enumerate}
+\end{flushleft}
+
+
+
+
+
+
+\section{Badanie wybranych rozkladow i estymatorow przedzialowych}
+\subsection{Wprowadzenie}
+Podczas analizowania danych w poprzednim podpunkcie nie zauwazylem, zeby rozklady gestosci przypominaly ktores z popularniejszych rozkladow. Postanowielm wobec tego wykorzystac fakt, ze populacja badanych ogloszen jest bardzo liczna (ok. 39 tys.). Wobec tego postanowilem przeanalizowac rozklady wybranych cech dla podgrup majacych jakas wspolna  ceche. Wyniki tych analiz mozna zaobaczyc ponizej.
+
+\subsection{Metody testowania rozkladow}
+Rozklady zmiennych badana przywiazujac uwage glownie do tego, czy moga one pochodzi z rozkladu normalnego - taki fakt umozliwilby wykonanie innych ciekawszych testow.
+\paragraph{Test Shapiro-Wilka\newline} 
+
+Test Shapiro - Wilka nie wymaga spelnienia szczegolnych zalozen. Pozwala on sprawdzic, czy zmienna pochodzi z rozkladu normalnego. Hipoteza zerowa i alternatywna w tescie maja postac:
+\\
+\textrm{\textbf{Hipoteza zerowa:} Próba pochodzi z populacji o rozkładzie normalnym}
+\\
+\textrm{\textbf{Hipoteza alternatywna:} Próba nie pochodzi z populacji o rozkładzie normalnym}
+\\
+Rozklad uznaje sie za normalny, gdy p - wartosc testu jest wieksza od 0.05.
+
+\paragraph{Wykres kwantyl - kwantyl\newline}
+Wykres pokazuje jak kwantyle badanego rozkladu maja sie do teoretycznych. Rozklad uznaje sie za normalny, gdy punkty na wykresie leza wzdluz krzywej.
+
+\subsection{Badanie estymatorow przedzialowych}
+Do badania estymatora wartosci oczekiwanej rozkladu uzyto t - testu (Wersji dla jednej probki). Test ten pozwala wyznaczyc przedzial ufnosci wartosci oczekiwanej i jako hipoteze zerowa przyjmuje fakt, rzeczywista wartosc oczekiwana populacji jest rowna podanej wartosci. Waznym zalozeniem tego testu jest koniecznosc 
+tego, by zmienna pochodzila z rozkladu normalnego. Podczas testowania nie nie uzywalem testu w celu sprawdzenia, czy dana wartosc jest rzeczywista wartoscia oczekiwana, a raczej sprawdzalem jakie sa przedzialy ufnosci na danym poziomie istotnosci.
+
+\subsection{Rozklad przejechanych kilometrow dla aut marki Porsche}
+Jednym z rozkladow, ktory zwrocil moja uwage jako wyjatkowo podobny do rozkladu normalnego byl rozklad przejechanych kilometrow dla aut marki Porsche.
+
+\begin{figure}[h]
+\centering
+\newpage
+<<fig = True, echo = False>>=
+porsche <- cars[cars$manufacturer_name == "Porsche",]
+porsche %>%
+  ggplot( aes(x=odometer_value)) +
+  geom_density(fill="#69b3a2", color="black", alpha=0.8) +
+  ggtitle("Liczba przejechanych km - rozkład gęstości p.") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Liczba przejechanych km", y = "prawdopodobieństwo")
+@
+\caption{Rozklad przejechanych kilometrow dla aut marki Porsche}
+\end{figure}
+\newpage
+Pierwszym krokiem bylo sporzadzenie wykresu Q-Q.
+\begin{figure}[h]
+\centering
+\newpage
+<<fig = True,  echo = False>>=
+ggqqplot(porsche$odometer_value) +
+  ylab ("Kwantyle probki") +
+  xlab ("Kwantyle teoretyczne")
+
+@
+\caption{Wykres Q-Q dla rozkladu przejechanych kilometrow Porsche}
+\end{figure}
+
+Jak widac na wykresie nie wszystkie punkty leza idealnie na prostej, jednak wciaz sa one na tyle blisko ze zasadne jest przeprowadzenie testu Shapiro - Wilka
+
+<<>>=
+print(shapiro.test(porsche$odometer_value))
+@
+P - wartosc testu znaczaco przekroczyla 0.05. Mozna wiec zalozyc, ze zmienna pochodzi z rozkladu normalnego.
+\\
+Wobec tego ze rozklad zmiennej jest normlany, warto jest dowiedziec sie o niej czegos wiecej. Wykonajmy wiec standardowa analize:
+<<echo = False>>=
+get_basic_stats(porsche$odometer_value)
+@
+Dzieki temu, ze zalozylismy normlanosc rozkladu, mozliwe jest wykonanie t - testu:
+
+<<>>=
+t.test(porsche$odometer_value)
+@
+Test wskazuje na to, ze srednia liczba przejechanych kilometrow dla sprzedawanych Porsche miesci sie w przedziale [171298.5 209864.6] z 95\% pradopodobienstwem. Hipoteza zerowa zerowa zostala oczywiscie odrzucona - wartosc srednia populacji nie jest rowna 0. Sprawdzanie hipotezy zerowej nie bylo jednak prawdziwym celem testu - tym bylo poznanie przedzialu ufnosci.
+
+
+
+
+
+\subsection{Rozklad przejechanych kilometrow dla aut marki Chery}
+Znalezienie znanych rozkladow w badanych danych bylo sporym wyzwaniem. Jednak wartosc przejechanych kilometrow wydala sie byc zmienna, ktora najczesciej miala rozklad przypominajacy rozklad normalny. Byc moze spowodowane, jest to "losowoscia" tego czynnika - przykladowo ceny zwykle sa dobierane z  pewna premedytacja. Wobec powyzszego zdecydowalem sie przenalizowac liczbe przejechanych kilometrow po raz kolejny - tym razem dla aut marki Chery. Ponizej znajduje sie jego wykres:
+\begin{figure}[h]
+\centering
+\newpage
+
+<<fig = True, echo = False>>=
+chery <- cars[cars$manufacturer_name == "Chery",]
+chery %>%
+  ggplot( aes(x=odometer_value)) +
+  geom_density(fill="#69b3a2", color="black", alpha=0.8) +
+  ggtitle("Liczba przejechanych km - rozkład gęstości p.") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Liczba przejechanych km", y = "prawdopodobieństwo")
+@
+\caption{Rozklad przejechanych kilometrow dla aut marki Chery}
+\end{figure}
+\newpage
+Nastepnym krokiem bylo sporzadzenie wykresu Q-Q.
+\begin{figure}[h]
+\centering
+\newpage
+<<fig = True, echo = False>>=
+ggqqplot(chery$odometer_value) +
+  ylab ("Kwantyle probki") +
+  xlab ("Kwantyle teoretyczne")
+
+@
+\caption{Wykres Q-Q dla rozkladu przejechanych kilometrow Porsche}
+\end{figure}
+
+Podobnie jak poprzednim razem - wykres nie przedstwia idealnej krzywej, daje jednak nadzieje na pozytywny wynik testu Shapiro - Wilka.
+
+<<>>=
+print(shapiro.test(chery$odometer_value))
+@
+P - wartosc testu przekroczyla 0.05. Mozna wiec zalozyc, ze zmienna pochodzi z rozkladu normalnego. Zalozenie to jest jednak bardziej kontrowersyjne niz w przypadku Porsche.
+\\
+Wobec tego ze rozklad zmiennej uznalismy jako normlany, warto jest dowiedziec sie o niej czegos wiecej. Wykonajmy wiec standardowa analize:
+<<echo = False>>=
+get_basic_stats(chery$odometer_value)
+@
+Ponownie zbadam rowniez srednia wartosc przy pomocy t- testu.
+
+<<>>=
+t.test(chery$odometer_value)
+@
+Test wskazuje na to, ze srednia liczba przejechanych kilometrow dla sprzedawanych Chery miesci sie w przedziale 105247.7, 135736.0] z 95\% pradopodobienstwem. 
+
+
+
+
+\subsection{Rozklad cen dla aut marki SsangYong}
+Poprzednio badne rozklady nie satysakcjonowaly mnie w pelni. Glownym zalozeniem projektu bylo badanie cen a nie liczby przejechanych kilometrow. Niestety znalezienie pozdzbioru aut, dla ktorych rozklad cen przypominalby jakis znany rozklad nie bylo proste. Wobec tego napisalem funkcje, ktora automatycznie wykonuje test Shapiro - Wilka dla wszystkich podzbiorow aut nalezacych do tej samej marki.
+\\
+Dzieki temu udalo mi sie odkryc, ze rozklad najblizszy normalnemu posiada wykres cen aut marki SSangYong (p wartosc testu wynosila 0.5061). Ponizej znajduje sie ilustracja przedstawiajaca ten rozklad.
+\begin{figure}[h]
+\centering
+\newpage
+<<fig = True, echo = False>>=
+sy <- cars[cars$manufacturer_name == "SsangYong",]
+sy %>%
+  ggplot( aes(x=price_usd)) +
+  geom_density(fill="#69b3a2", color="black", alpha=0.8) +
+  ggtitle("Cena - rozkład gęstości p.") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  labs(x = "cena", y = "prawdopodobieństwo")
+@
+\caption{Rozklad cen dla aut marki SsangYong}
+\end{figure}
+\newpage
+Sporzadzono rowniez wykres Q-Q, aby upewnic sie, co do normalnosci rozkladu:
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True>>=
+ggqqplot(sy$price_usd) +
+  ylab ("Kwantyle probki") +
+  xlab ("Kwantyle teoretyczne")
+
+@
+\caption{Wykres Q-Q dla cen SsangYong}
+\end{figure}
+\newpage
+Ponizej znajduja sie podstawowe informacje o cenie aut tej marki:
+<<echo = False>>=
+get_basic_stats(sy$price_usd)
+@
+Test wykazal, ze z 95\% pradopodobienstwem srednia cena aut tej marki znajduje sie w przedziale [7094.630, 8344.015] USD.
+Skoro rozklad mozna uznac za normalny, to mozna policzyc rowniez estymator przedzialowy dla sredniej korzystajac z t -testu.
+
+<<echo = False>>=
+t.test(sy$odometer_value)
+@
+\paragraph{T - test dla dwoch zmiennych}
+Korzystajac z normalnosci rozkladu cen samochodow tej marki, postanowilem rowniez wykonac T - test w wersji dla dwoch probek. Ten test pozwala ocenic czy prawdziwe wartosci sredniej dwoch probek sa rozne. W tym celu podzielilem auta marki SsangYong na dwa podzbiory - posiadajace mniej/ wiecej niz 250 tys. km na liczniku (mediana dla wszystkich samochodow). Okazalo sie ze rozklad cen w podzbiorach rowniez moze zostac uznany za normalny - p - wartosc testu dla mniej eksploatowanych aut wynosila 0.697,
+a dla bardziej ekspolatowanych - 0.0495 (co pozwolilem sobie zaokraglic do 0.05).
+Liczebnosc obu pozdzbiorow byla podobna (48:32 na korzysc mniej eksploatowanych pojazdow). Zalozenia testu sa wiec spelnione.
+Ponizej znajduje sie kod dzielacy auta na podzbiory i dodajacy nowa kolumne symbolizujaca eksploatacje auta na kopopii danych.
+<<>>=
+less_exploated_half <- sy[sy$odometer_value<=250000,]
+more_exploated_half <- sy[sy$odometer_value>=250000,]
+exploated <- vector()
+
+sy_copy <- sy
+
+for (row in 1:nrow(sy_copy)){
+  odometer <- sy_copy[row, "odometer_value"]
+  exploated = append(exploated, odometer >=250000)
+}
+
+sy_copy$is_exploated = exploated
+@
+Ponizej znajduja sie wyniki t - testu:
+<<>>=
+t.test(less_exploated_half$price_usd, more_exploated_half$price_usd)
+@
+Test wskazuje na wyrazna roznice w wartosci oczekiwanej dla obu probek (Hipoteza zerowa oznacza zerowa roznice w medianach, a p- wartosc jest bardzo niska).
+Ponizej znajduje sie wykres pudelkowy cen dla tych dwoch zbiorow ilustrujacy roznice w cenach.
+\begin{figure}[h]
+\centering
+<<fig = True, echo = False>>=
+sy_copy %>%
+  ggplot( aes(x=is_exploated, y=price_usd, fill = is_exploated)) +
+  geom_boxplot() +
+  scale_fill_viridis(discrete = TRUE, alpha=0.6, option="A") +
+  ggtitle("Wykresy pudelkowe aut bardziej i mniej eksploatowanych") +
+  ylab("cena w USD")+
+  xlab("") +
+  scale_fill_discrete(name = "Czy auto ma wiecej niz 250 tys km")
+@
+\caption{Wykres porownujacy ceny aut w zaleznosci od ekspolatacji}
+\end{figure}
+\\
+Celem testu jest wprowadzeniem do nastepnej sekcji, gdzie badana bedzie zaleznosc miedzy zmiennymi, dla ogolnego przypadku.
+\section {Zaleznosci miedzy zmiennymi}
+Glownym zagadnieniem, ktore chcialem zbadac byla zaleznosc ceny wystawianych samochodow w zaleznosci od ich cech (jak i chech samego ogloszenia).
+W tym celu stworzone zostaly cztwery modele.
+\paragraph{Model 1- przejechane kilometry\newline}
+Pierwszym pomyslem bylo sprawdzenie, czy istnieje zaleznosc
+miedzy cena, a liczba przejechanych kilometrow. 
+Istnienie zjawiska cofania licznikow wskazywaloby, 
+na to ze zaleznosc powinna byc dosyc znaczna.
+W tym celu stworzono wykres ceny w zaleznosci od liczby 
+przejechanych kilometrow.
+\newpage
+\begin{figure}[h]
+\centering
+<<fig = True, echo = False>>=
+ggplot(cars, aes(x = odometer_value, y =price_usd))+ 
+  geom_point() +
+  xlab("Liczba przejechanych kilometrow") +
+  ylab("Cena w USD")
+@
+\caption{Wykres zaleznosci ceny od przejechanych kilometrow}
+\end{figure}
+
+Wykres nie jest zbyt czytelny, co jest spowodowane spora liczba danych (okolo 39 tysiecy). Mimo to, mozna zauwazyc, ze cena zdaje sie malec wraz z liczba przejechanych kilometrow. Nastepnym krokiem bylo zbadanie korelacji tych dwoch zmiennych.
+<<>>=
+cor(cars$odometer_value, cars$price_usd)
+@
+Korealcja miedzy zmiennymi jest mniejsza niz sie tego spodziewalem.
+\\
+Mimo tego zdecydowalem sie na stworzenie modelu:
+<<>>=
+model1 <- lm(cars$price_usd ~ cars$odometer_value)
+summary(model1)
+@
+P - wartosc hipotezy oznaczajacej niezaleznosc tych dwoch parametrow jest bardzo
+mala. Oznacza to, ze najprawdopodobniej warto pozostawic ta zmienna w modelu. Wartosc $R^2$ jest stanowczo za mala, by uznac model za dobry. Sprawdzilem jeszcze 
+jak wyglada rozklad roznic.
+\begin{figure}[h]
+\centering
+<<fig = True, echo = False>>=
+ggqqplot(residuals(model1))+
+  xlab("Kwantyle teoretyczne") +
+  ylab("Kwantyle probki")
+@
+\caption{Q - Q Wykres dla roznicy w modelu 1.}
+\end{figure}
+Jak widac na wykresie rozklad roznic jest niestety znaczaco rozny od rozkladu normalnego szczegolnie dla wyzszych kwantyli.
+Ostatecznie model prezentuje sie nastepujaco:
+\newpage
+\begin{figure}[h]
+\centering
+<<fig = True>>=
+plot(cars$odometer_value, cars$price_usd, xlab = "Licba przejechanych km",
+     ylab = "Cena [USD]")
+abline(model1, col="red")
+@
+\caption{Krzywa uzyskana w modelu 1.}
+\end{figure}
+
+
+
+\paragraph{Model 2- Rok produkcji\newline}
+Nastepnym pomyslem bylo sprawdzenie czy cena jest uzalezniona od roku produkcji. Skoro dilerzy samochodowi co roku robia wyprzedaz starego rocznika, to moze faktycznie auta blyskawicznie traca na wartosci? Pierwszym krokiem bylo sporzadzenie wykresu:
+\newpage
+\begin{figure}[h]
+\centering
+<<fig = True, echo = False>>=
+ggplot(cars, aes(x = year_produced, y =price_usd))+ 
+  geom_point() +
+  xlab("Rok produkcji") +
+  ylab("Cena w USD")
+@
+\caption{Wykres zaleznosci ceny od roku produkcji}
+\end{figure}
+
+Wykres zdaje sie dawac nadzieje na znalazienie koleracji. Ponownie nie jest on jednak zbyt czytelny.
+<<>>=
+cor(cars$year_produced, cars$price_usd)
+@
+Tym razem koleracja miedzy zmiennymi byla pozytywnie zaskakujaca. Mozna stwierdzic ze zmienne sa istotnie zalezne
+\\
+Nastepnie stworzylem model
+<<>>=
+model2 <- lm(cars$price_usd ~ cars$year_produced)
+summary(model2)
+@
+P - wartosc hipotezy oznaczajacej niezaleznosc tych dwoch parametrow jest bardzo
+mala. Oznacza to, ze najprawdopodobniej warto pozostawic ta zmienna w modelu. Wartosc $R^2$ jest lepsza niz w poprzednim modelu, jednak wciaz nie jest satysfakcjonujaca. Kolejnym krokiem bylo sprawdzenie, jak wyglada rozklad roznic.
+\begin{figure}[h]
+\centering
+<<fig = True, echo = False>>=
+ggqqplot(residuals(model2))+
+  xlab("Kwantyle teoretyczne") +
+  ylab("Kwantyle probki")
+@
+\caption{Q - Q Wykres dla roznicy w modelu 2.}
+\end{figure}
+Jak widac na wykresie rozklad nie do konca pokrywa sie z teoretycznym rozkladem normalnym, szczegolnie dla wiekszych wartosci. Ostatecznie model prezentuje sie nastepujaco:
+\newpage
+
+\begin{figure}[h]
+\centering
+<<echo = False, fig = True>>=
+plot(cars$year_produced, cars$price_usd, , xlab = "Rok produkcji",
+     ylab = "Cena [USD]")
+
+abline(model2, col="red")
+
+@
+\caption{Krzywa uzyskana w modelu 2.}
+\end{figure}
+
+\paragraph{Model 3- Eksperyment\newline}
+Dotychczs kazda zmienna wykazywala zaleznosc na tyle istotna by znajdowac sie w modelu. Postanowilem wiec zobaczyc, co stanie sie, gdy model uzaleznie od wszystkich wartosci liczbowych, ktorymi dysponuje.
+
+<<>>=
+model3 <- lm(cars$price_usd ~ cars$odometer_value + cars$year_produced +
+               cars$engine_capacity + cars$number_of_photos + cars$duration_listed)
+summary(model3)
+@
+Okazalo sie, ze kazda wartosc ma znaczacy wplyw na cene. Nawet tak niepozorne czynniki jak liczba zdjec sa powiazane z cena jakiej sprzedajacy chce za samochod.
+Dodatkowo model ten jest najlepszym ze wszystkich dotychczasowych. Poziom skomlpikowania jednak drastycznie wzrosl. Warto rowniez zwrocic uwage, na fakt, ze w kazdym przypadku oporocz liczby przjechanych kilometrow wspolczynnik byl dodani, tak wiec cena rosla wraz ze wzrostem wartosci cechy. Jest to wytlumaczalne dla wszystkich cech. Najmniej trywialne wyjasnienie tego stanu rzeczy dotyczy czasu od wystawienia ogloszenia. Mozna zalozyc, ze auta tanie szybciej sie sprzedaja, wobec czego dotyczace ich ogloszenia nie sa juz dostepne - wiec im dluzej auto jest wystawione, tym jest drozsze. Ta cecha ma jednak najmniejszy wplyw na model.
+\\
+Pozostaje jeszcze sprawdzic, czy nastapila zmiana w rozkladzie reszt:
+\begin{figure}[h]
+\centering
+<<fig = True, echo = False>>=
+ggqqplot(residuals(model3))+
+  xlab("Kwantyle teoretyczne") +
+  ylab("Kwantyle probki")
+@
+\caption{Q - Q Wykres dla roznicy w modelu 3.}
+\end{figure}
+Niestety ten wykres wydaje sie byc bez zmian niezaleznie od dobranego modelu.
+
+
+
+
+\paragraph{Model 4 - model wykorzystujacy wszystkie znane cechy\newline}
+Skoro poprzedni model okazal sie byc lepszy od poprzednich, to moze sluszne bedzie uzycie wszystkich znanych cech podczas budowania modelu? Postanowilem to sprawdzic.
+<<>>=
+model4 <- lm(cars$price_usd ~ cars$odometer_value + cars$year_produced +
+              cars$engine_capacity + cars$number_of_photos + cars$manufacturer_name
+            + cars$color + cars$body_type)
+
+summary(model4)
+@
+Okazuje sie, ze model jest dokladniejszy. Jest to rowniez pierwszy model, dla ktorego wartosc $R^2$ przekroczyla 0.70. Niewatpliwa wada tego modelu wysoki poziom skomplikowania. Warto zauwazyc, ze teraz nie wszystkie cechy sa juz istotne w 
+modelu (chociaz znaczna czesc nadal jest). Ponadto, ze zmienne jakosciowe sa teraz rozpatrywane jako wartosci prawda/falsz  okreslajace, czy dany element nalezy do odpowiedniego podzbioru. Postanowilem rowniez sprawdzic rozklad reszt, jednak tym razem rowniez nie zauwazylem istotnych zmian. 
+\newpage
+\begin{figure}[h]
+\centering
+<<fig = True, echo = False>>=
+ggqqplot(residuals(model3))+
+  xlab("Kwantyle teoretyczne") +
+  ylab("Kwantyle probki")
+@
+\caption{Q - Q Wykres dla roznicy w modelu 4.}
+\end{figure}
+
+
+\section{Wnioski}
+Wnioski płynące z przeprowadzonej analizy, są następujące:
+\begin{itemize}
+\item Na cene samochodow ma wplyw wiele czynnikow,
+\item liczba przejechanych kilometrow nie jest wcale najwazniejszym czynnikiem determinujacym cene,
+\item zaskakujaco istotny (w kontekscie ceny) jest rok produkcji samochodu,
+\item niektore kolory (czarny, brazowy, bialy) zdaja sie byc wystawiane drozej niz inne,
+\item zgodnie z oczekiwaniami marka ma duzy wplywa na cene samochodu, co widac na przykladzie Porsche i Fiata,
+\item najwiecej wystawianych aut pochodzi z lat 1985 - 2015.
+\end{itemize}
+
+\end{document}

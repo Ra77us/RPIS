@@ -1,0 +1,52 @@
+
+\documentclass{article}
+
+\usepackage{polski}
+% skomentowana dla MAC wersja {inputenc}
+ \usepackage[utf8]{inputenc}
+% \usepackage[T1]{fontenc}
+%\usepackage[cp1250]{inputenc}
+\usepackage{polski}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage{amsmath}
+\usepackage{Sweave}
+\usepackage{enumerate}
+\usepackage{hyperref}
+
+\title{Badanie ogloszen uzywanych samochodow - Streszczenie raportu}
+\author{\textbf{401039, Michał Szczurek}, czwartek $14^{40}$\\ 
+\textit{AGH, Wydział Informatyki Elektroniki i Telekomunikacji}\\
+\textit{Rachunek prawdopodobieństwa i statystyka 2020/2021}}
+\date{Kraków, \today}
+
+
+\begin{document}
+\input{Streszczenie-concordance}
+\maketitle
+  Raport powstał w oparciu o analizę danych dotyczących ogłoszeń sprzedaży używanych
+samochodów na Białorusi. Głównym celem analizy było sprawdzenie jakie cechy mają
+wpływ na cenę sprzedawanych samochodów. Analizy dokonano przy pomocy języka R i 
+programu RStudio.
+W badaniu wykorzystano nastepujace cechy:
+\begin{itemize}
+\item manufacturer name - nazwa marki,
+\item color - kolor,
+\item odometer value - liczba przejechanych kilometrow,
+\item year produced - data produkcji samochodu,
+\item engine capacity - pojemnosc silnika (w litrach),
+\item body type - typ samochodu (np. suv, sedan),
+\item price usd - cena w dolarach,
+\item number of phots - liczba zdjec w ogloszeniu,
+\item days listed - liczba dni od wystawienia ogloszenia
+\end{itemize}
+
+Analizujac dane szczegolna wage przywiazano do zaleznosci miedzy cena a liczba przejechanych kilometrow i rokiem produkcji. Wplyw marek i kolorow samochodow nie zostal jednak pominiety (jak i innych mniej istotnych cech). 
+\\
+Stworzony podczas badania model wskazal, ze dla wszystkich cech ilosciowych za wyjatkiem liczby przejechanych kilometrow maja pozytywny (wraz ze wzrostem  badanych wartosci cena rosnie) wplyw na cene samochodu.
+\\
+Podczas badan odkryto rowniez, ze wbrew intuicji wiekszosc cech nie najprawdopodobniej nie pochodzi z rozkladu normalnego. Prawdopodobnie jest to spowodowane, tym ze na dane takie jak ilosc zdjec, cena ludzie maja bezposredni wplyw.
+
+
+
+\end{document}
